@@ -56,11 +56,11 @@ LP_DIR=`cd $(dirname $0); cd ..; pwd`
 export COMPOSER_HOME="${CACHE_DIR}/.composer"
 
 function indent() {
-	c='s/^/       /'
-	case $(uname) in
-		Darwin) sed -l "$c";;
-		*)      sed -u "$c";;
-	esac
+    c='s/^/       /'
+    case $(uname) in
+        Darwin) sed -l "$c";;
+        *)      sed -u "$c";;
+    esac
 }
 
 function strip_slashes() {
@@ -68,16 +68,16 @@ function strip_slashes() {
 }
 
 function check_md5() {
-	SUMS_FILE="${BUNDLE_DIR}/${MANIFEST_FILE}"
-	TARGET="$1"
-	SUM=`cat "${SUMS_FILE}" | grep "${TARGET}" | cut -d ' ' -f 1`
-	OUTPUT=`md5sum ${BUNDLE_DIR}/${TARGET} | cut -d ' ' -f 1`
-	! [ "$SUM" = "$OUTPUT" ]
+    SUMS_FILE="${BUNDLE_DIR}/${MANIFEST_FILE}"
+    TARGET="$1"
+    SUM=`cat "${SUMS_FILE}" | grep "${TARGET}" | cut -d ' ' -f 1`
+    OUTPUT=`md5sum ${BUNDLE_DIR}/${TARGET} | cut -d ' ' -f 1`
+    ! [ "$SUM" = "$OUTPUT" ]
 }
 
 function download_url() {
-	TARGET_URL="$1"
-	curl -s -S -O -L -m 300 --connect-timeout 60 "$TARGET_URL"
+    TARGET_URL="$1"
+    curl -s -S -O -L -m 300 --connect-timeout 60 "$TARGET_URL"
 }
 
 # package params: name tarball version url build_dir target
@@ -238,31 +238,17 @@ popd > /dev/null
 
 pushd ${BUILD_DIR}
 
-    if [ -f "composer.json" ]
-    then
-            echo "-----> Installing dependencies using Composer"
-            GIT_DIR_ORIG=${GIT_DIR}
-            unset GIT_DIR
+    if [ -f composer.json ] && [ ! -d vendor ]; then
+        GIT_DIR_ORIG=$GIT_DIR
+        unset GIT_DIR
+        echo "-----> Bundling Composer"
+        COMPOSER_URL="http://getcomposer.org/composer.phar"
+        curl --silent --max-time 60 --location "$COMPOSER_URL" > composer.phar
 
-            if [ ! -f "composer.phar" ]
-            then
-                    echo "Fetching composer.phar" | indent
-                    if [ -f "bin/composer" ]
-                    then
-                        echo bin/composer | indent
-                        cp bin/composer composer.phar
-                    else
-                        echo ${COMPOSER_URL} | indent
-                        download_url ${COMPOSER_URL}
-                    fi
-            fi
-
-            echo "-----> Composer install"
-            # do the deed!
-            echo "Running: php composer.phar install --prefer-dist -n --no-progress " | indent
-            ${EXEC_PHP} composer.phar install --prefer-dist -n --no-progress | indent
-
-            export GIT_DIR=${GIT_DIR_ORIG}
+        echo "-----> Installing dependencies"
+        LD_LIBRARY_PATH=${EXEC_PHP} -d date.timezone=UTC composer.phar install --prefer-source
+        rm composer.phar
+        export GIT_DIR=$GIT_DIR_ORIG
     fi
 
 popd > /dev/null
@@ -297,27 +283,27 @@ echo "Booting nginx"
 # Override config files if provided in app.
 if [ -d /app/conf ]; then
 
-	mkdir -p /app/conf/nginx.d
+    mkdir -p /app/conf/nginx.d
 
-	if [ -d /app/conf/etc.d ]; then
-		cp -f /app/conf/etc.d/* /app/${PHP_PATH}/etc.d/
-	fi
+    if [ -d /app/conf/etc.d ]; then
+        cp -f /app/conf/etc.d/* /app/${PHP_PATH}/etc.d/
+    fi
 
-	if [ -r /app/conf/php-fpm.conf ]; then
-		cp -f /app/conf/php-fpm.conf /app/${PHP_PATH}/etc/php-fpm.conf
-	fi
+    if [ -r /app/conf/php-fpm.conf ]; then
+        cp -f /app/conf/php-fpm.conf /app/${PHP_PATH}/etc/php-fpm.conf
+    fi
 
-	if [ -r /app/conf/php.ini ]; then
-		cp -f /app/conf/php.ini /app/${PHP_PATH}/php.ini
-	fi
+    if [ -r /app/conf/php.ini ]; then
+        cp -f /app/conf/php.ini /app/${PHP_PATH}/php.ini
+    fi
 
-	if [ -r /app/conf/nginx.conf.erb ]; then
-		cp -f /app/conf/nginx.conf.erb /app/vendor/nginx/conf/nginx.conf.erb
-	fi
+    if [ -r /app/conf/nginx.conf.erb ]; then
+        cp -f /app/conf/nginx.conf.erb /app/vendor/nginx/conf/nginx.conf.erb
+    fi
 
-	if [ -r /app/conf/fastcgi_params.erb ]; then
-		cp -f /app/conf/fastcgi_params.erb /app/vendor/nginx/conf/fastcgi_params
-	fi
+    if [ -r /app/conf/fastcgi_params.erb ]; then
+        cp -f /app/conf/fastcgi_params.erb /app/vendor/nginx/conf/fastcgi_params
+    fi
 
 fi
 
@@ -328,44 +314,44 @@ if [ -r $LP_DIR/conf/fastcgi_params.erb ]; then
 fi
 
 if [ -d /app/conf/nginx.d ]; then
-	# Parse .erb into .conf.
-	for f in /app/conf/nginx.d/*.erb
-	do
-		if [ -r "\${f}" ];
-		then
-			erb "\${f}" > "\${f}.conf"
-		fi
-	done
+    # Parse .erb into .conf.
+    for f in /app/conf/nginx.d/*.erb
+    do
+        if [ -r "\${f}" ];
+        then
+            erb "\${f}" > "\${f}.conf"
+        fi
+    done
 fi
 
 if [ -d /app/vendor/php/etc.d ]; then
-	# Parse .erb into .ini.
-	for f in /app/vendor/php/etc.d/*.erb
-	do
-		if [ -r "\${f}" ];
-		then
-			erb "\${f}" > "\${f}.ini"
-		fi
-	done
+    # Parse .erb into .ini.
+    for f in /app/vendor/php/etc.d/*.erb
+    do
+        if [ -r "\${f}" ];
+        then
+            erb "\${f}" > "\${f}.ini"
+        fi
+    done
 fi
 
 # Set NEWRELIC key
 if [ "\${NEW_RELIC_LICENSE_KEY}" -a -x "/app/local/bin/newrelic-license" ]; then
-	echo "NEWRELIC license setted to ${NEW_RELIC_LICENSE_KEY}"
-	/app/local/bin/newrelic-license
+    echo "NEWRELIC license setted to ${NEW_RELIC_LICENSE_KEY}"
+    /app/local/bin/newrelic-license
 fi
 
 # Preserve current php-fpm.conf so that env list does
 # not go out of hand across restarts.
 if [ -r /app/${PHP_PATH}/etc/php-fpm.conf.current ]; then
-	cp -f /app/${PHP_PATH}/etc/php-fpm.conf.current /app/${PHP_PATH}/etc/php-fpm.conf
+    cp -f /app/${PHP_PATH}/etc/php-fpm.conf.current /app/${PHP_PATH}/etc/php-fpm.conf
 else
-	cp -f /app/${PHP_PATH}/etc/php-fpm.conf /app/${PHP_PATH}/etc/php-fpm.conf.current
+    cp -f /app/${PHP_PATH}/etc/php-fpm.conf /app/${PHP_PATH}/etc/php-fpm.conf.current
 fi
 
 # Expose Heroku config vars to PHP-FPM processes
 for var in \`env | cut -f1 -d=\`; do
-	echo "env[\$var] = \\$\${var}" >> /app/${PHP_PATH}/etc/php-fpm.conf
+    echo "env[\$var] = \\$\${var}" >> /app/${PHP_PATH}/etc/php-fpm.conf
 done
 
 touch /app/vendor/nginx/logs/access.log /app/vendor/nginx/logs/error.log /app/${PHP_PATH}/var/log/php-fpm.log /app/${PHP_PATH}/var/log/php-errors.log /app/local/var/log/newrelic/newrelic-daemon.log /app/local/var/log/newrelic/php_agent.log
@@ -374,7 +360,7 @@ mkdir -p client_body_temp fastcgi_temp proxy_temp scgi_temp uwsgi_temp
 
 
 if [ "\${NEW_RELIC_LICENSE_KEY}" -a ! -f /app/local/NEWRELIC_VERSION ]; then
-	/app/local/bin/newrelic-daemon -c /app/local/etc/newrelic.cfg -d error
+    /app/local/bin/newrelic-daemon -c /app/local/etc/newrelic.cfg -d error
 fi
 
 echo "Warming up Cache and Log..."
